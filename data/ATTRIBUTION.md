@@ -10,7 +10,7 @@ License text: https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 `events_sample.csv` is the earliest 5,000 records selected from the original `events.csv`, sorted by timestamp. Identifiers and event values are unchanged. It contains 4,879 views, 98 add-to-cart events and 23 transactions. Selection and sorting are the only changes. This sample and derived data retain the dataset license. Use for this educational project is noncommercial. The code license does not relicense the dataset.
 
-`scripts/live_demo.py` and acceptance tests generate clearly labeled mock events. Those events are not presented as observations from Retail Rocket.
+`scripts/live_demo.py` selects genuine candidate views and a view/cart/purchase trace from the complete CSV after full-source verification. It preserves identities and actions and applies one disclosed constant timestamp shift. It is a controlled second replay of selected real records. Separate acceptance tests generate clearly labeled synthetic edge cases; those test records are not presented as Retail Rocket observations.
 
 The downloadable submission ZIP also includes the unchanged original `retailrocket_events.csv.zip` archive under this same dataset license. Git intentionally excludes that binary to avoid a large repository; Git users can obtain it using `scripts/download_data.py`. No Kaggle credentials are stored in the project.
 

@@ -21,7 +21,7 @@ def main():
     p.add_argument('--trigger', default='5 seconds')
     p.add_argument('--threshold', type=int, default=5)
     p.add_argument('--top-k', type=int, default=3)
-    p.add_argument('--max-offsets', type=int, default=1000)
+    p.add_argument('--max-offsets', type=int, default=25000)
     p.add_argument('--console', action='store_true')
     p.add_argument('--fail-after-publish-batch', type=int, default=None)
     args = p.parse_args()

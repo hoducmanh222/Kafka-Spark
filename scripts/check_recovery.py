@@ -1,13 +1,28 @@
 """Verify persisted offsets are unique and restarted queries retain their identity."""
 import json
+import sqlite3
+import tempfile
+import sys
 from collections import defaultdict
 from pathlib import Path
 import pyarrow.dataset as ds
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from retail.audit import committed_audit
 
 root = Path('runtime')
-audit = ds.dataset(str(root / 'curated'), format='parquet', partitioning='hive')
-coordinates = [(r['topic'], r['partition'], r['offset']) for r in audit.to_table(columns=['topic', 'partition', 'offset']).to_pylist()]
-assert len(coordinates) == len(set(coordinates)), 'duplicate Kafka coordinates in curated Parquet'
+audit = committed_audit(root)
+assert audit is not None, 'no committed Parquet audit exists'
+with tempfile.TemporaryDirectory(prefix='recovery-offsets-') as temp:
+    connection = sqlite3.connect(str(Path(temp) / 'offsets.sqlite'))
+    try:
+        connection.execute('CREATE TABLE offsets (topic TEXT, partition INTEGER, offset INTEGER, PRIMARY KEY(topic,partition,offset))')
+        for batch in audit.scanner(columns=['topic', 'partition', 'offset'], batch_size=65536).to_batches():
+            connection.executemany('INSERT INTO offsets VALUES(?,?,?)',
+                                   [(r['topic'], r['partition'], r['offset']) for r in batch.to_pylist()])
+    except sqlite3.IntegrityError as exc:
+        raise AssertionError('duplicate Kafka coordinates in curated Parquet') from exc
+    finally:
+        connection.close()
 progress = [json.loads(s) for s in (root / 'metrics/progress.jsonl').read_text().splitlines() if s]
 runs = defaultdict(set)
 ids = defaultdict(set)

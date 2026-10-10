@@ -55,12 +55,17 @@ services:
         --partitions 2 --replication-factor 1;
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
         --describe --topic retail-rocket-events
+  data-init:
+    <<: *app
+    volumes:
+      - ./data:/app/data
+    command: ['python', 'scripts/ensure_data.py']
   spark:
     <<: *app
     depends_on:
       topic-init:
         condition: service_completed_successfully
-    command: ['spark-submit', '--master', 'local[2]', '--driver-memory', '2g', '--conf', 'spark.driver.bindAddress=0.0.0.0', '--conf', 'spark.driver.host=spark', '--packages', 'org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.7', 'streaming_etl.py', '--console']
+    command: ['spark-submit', '--master', 'local[2]', '--driver-memory', '4g', '--conf', 'spark.driver.bindAddress=0.0.0.0', '--conf', 'spark.driver.host=spark', '--packages', 'org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.7', 'streaming_etl.py', '--console']
     ports:
       - '127.0.0.1:4040:4040'
     healthcheck:
@@ -75,7 +80,9 @@ services:
     depends_on:
       spark:
         condition: service_healthy
-    command: ['python', 'producer.py', '--csv', 'data/events_sample.csv', '--interval', '0.15', '--replay-clock']
+      data-init:
+        condition: service_completed_successfully
+    command: ['python', 'producer.py', '--csv', 'data/events.csv', '--interval', '0', '--replay-clock', '--expected-rows', '2756101', '--completion-file', 'runtime/producer_complete.json']
   demo:
     <<: *app
     profiles: ['tools']
@@ -90,5 +97,9 @@ services:
       spark:
         condition: service_healthy
     command: ['python', 'tests/e2e_acceptance.py']
+  verify-full:
+    <<: *app
+    profiles: ['tools']
+    command: ['python', 'scripts/verify_full_replay.py']
 volumes:
   kafka-data:

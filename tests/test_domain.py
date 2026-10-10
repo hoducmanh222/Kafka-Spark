@@ -10,6 +10,8 @@ from unittest.mock import Mock, patch
 from producer import replay, send_event
 from retail.domain import active_window_start, normalize_event, windows_for
 from scripts.prepare_data import prepare
+from scripts.ensure_data import verify_complete
+from scripts.live_demo import find_real_trace
 
 BASE = 1700000000000
 
@@ -83,6 +85,51 @@ class DomainTests(unittest.TestCase):
                 w.writerows([event(timestamp=BASE + 1000), event(timestamp=BASE)])
             with self.assertRaisesRegex(ValueError, 'prepare_data'):
                 replay(p, Mock(), 'topic', 0)
+
+
+    def test_asynchronous_replay_acknowledges_every_future(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'events.csv'
+            with path.open('w', newline='') as stream:
+                writer = csv.DictWriter(stream, fieldnames=event()); writer.writeheader()
+                writer.writerows([event(timestamp=BASE + i) for i in range(5)])
+            producer = Mock()
+            futures = [Mock() for _ in range(5)]
+            for i, future in enumerate(futures):
+                future.get.return_value.partition = i % 2
+                future.get.return_value.offset = i // 2
+            producer.send.side_effect = futures
+            result = replay(path, producer, 'topic', 0, max_pending=2, expected_rows=5)
+            self.assertEqual(result['sent'], 5)
+            self.assertEqual(result['event_counts'], {'view': 5})
+            self.assertEqual(sum(p['count'] for p in result['partitions'].values()), 5)
+            self.assertTrue(all(future.get.call_count == 1 for future in futures))
+
+    def test_full_data_guard_and_acknowledgement_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'events.csv'
+            with path.open('w', newline='') as stream:
+                writer = csv.DictWriter(stream, fieldnames=event()); writer.writeheader(); writer.writerow(event())
+            with self.assertRaisesRegex(ValueError, 'Full dataset required'):
+                verify_complete(path)
+            producer = Mock()
+            producer.send.return_value.get.side_effect = TimeoutError('broker acknowledgement failed')
+            with self.assertRaisesRegex(TimeoutError, 'acknowledgement'):
+                replay(path, producer, 'topic', 0)
+
+    def test_real_demo_selects_only_source_rows(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'events.csv'
+            source = [{**event(timestamp=BASE), 'visitorid': 20, 'itemid': 202},
+                      {**event(timestamp=BASE + 1), 'visitorid': 21, 'itemid': 303},
+                      event(timestamp=BASE + 1000), event('addtocart', timestamp=BASE + 2000),
+                      event('transaction', 99, BASE + 3000)]
+            with path.open('w', newline='') as stream:
+                writer = csv.DictWriter(stream, fieldnames=event()); writer.writeheader(); writer.writerows(source)
+            before, purchase = find_real_trace(path)
+            self.assertEqual(purchase, source[-1])
+            self.assertTrue(all(row in source for row in before))
+            self.assertEqual({r['event'] for r in before}, {'view', 'addtocart'})
 
 
 if __name__ == '__main__':

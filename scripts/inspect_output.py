@@ -20,6 +20,11 @@ if __name__ == '__main__':
     print(json.dumps(read_recommendations(a.root), indent=2))
     if a.parquet:
         import pyarrow.dataset as ds
+        from retail.audit import committed_audit
         for path in [Path(a.root) / 'curated', epoch / 'state', epoch / 'recommendations']:
-            data = ds.dataset(str(path), format='parquet', partitioning='hive', exclude_invalid_files=True)
+            data = (committed_audit(a.root) if path == Path(a.root) / 'curated' else
+                    ds.dataset(str(path), format='parquet', partitioning='hive', exclude_invalid_files=True))
+            if data is None:
+                print(path, 'No committed audit files yet')
+                continue
             print(path, 'rows=', data.count_rows(), 'schema=', data.schema)

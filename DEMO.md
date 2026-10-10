@@ -1,56 +1,60 @@
-# Classroom demonstration
+# Full-data classroom demonstration: 13 minutes
 
-Target duration: 13 minutes. Build the image before class so network downloads do not consume presentation time. Use the PowerPoint deck as a visual guide and spend most of the time in terminals and the Spark UI.
+The demonstration uses the complete **2,756,101-event Retail Rocket CSV** and the delivered **Python/PySpark** pipeline. Complete and verify the full replay before the timed presentation, then show its actual evidence and replay a genuine shopping trace selected from that same full CSV. The 13-minute presentation duration is separate from the machine-dependent full processing duration.
 
-## Preparation before class
+## Before class
 
-1. Install and start Docker Desktop or Docker Engine. Confirm `docker compose version` and `docker info` work.
-2. Run `docker compose build spark` and both unit-test commands in README.md.
-3. Start `docker compose up -d --wait spark`. Run acceptance checks once, restart Spark and run the recovery checks. Save the output for the appendix to the team submission.
-4. Keep two terminal windows in the repository. Use one for commands and one for `docker compose logs -f spark`. Open http://localhost:4040.
-5. Ensure the sample producer is stopped while demonstrating controlled lateness or mock transactions. Check disk space.
+1. Install and start Docker with Linux containers. Confirm `docker info` and `docker compose version` work.
+2. Run `docker compose up --build -d`. The full producer has no limit. In a Git clone, data-init downloads and stably sorts the entire source automatically.
+3. Run `docker compose --profile tools run --rm verify-full`. Do not proceed until it reports `PASS FULL DATASET END TO END` and creates `runtime/full_replay_verified.json`.
+4. Run the unit tests, sink fault test and controlled acceptance commands in README. Save their actual outputs.
+5. Keep the Kafka and PySpark services running, with the full producer already completed. Open the Spark UI at http://localhost:4040 and a second terminal running `docker compose logs -f spark`.
 
-## Minute 0 to 2
+## Minute 0-2: scenario and full-source evidence
 
-Explain the business case: a visitor adds an item to a cart and needs a useful suggestion while still shopping. Describe the five dataset fields, nullable transaction ID, 1/5/10 weights, 10-minute windows, one-minute slide and five-minute watermark. State the selected threshold of 5 and the separate purchase exclusion.
+Explain in-session cart personalization and the 1/5/10 weights. State the 10-minute window, one-minute slide and five-minute watermark. Show the complete CSV and its 2,756,101 events: 2,664,312 views, 69,332 carts and 22,457 transactions. Explain that a cart is required and a purchase suppresses that visitor-item anchor, even when the numerical score increases.
 
-## Minute 2 to 4
+## Minute 2-4: Kafka topic and complete producer receipt
 
 ```powershell
-docker compose up -d --wait spark
 docker compose ps -a
 docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --describe --topic retail-rocket-events
+Get-Content runtime/producer_complete.json
 ```
 
-Show `PartitionCount: 2`. Explain visitor keys and parallel source reads. The single broker is a classroom deployment with replication factor one. KRaft removes the need for ZooKeeper.
+Show `PartitionCount: 2`, all 2,756,101 acknowledged input records and the per-partition offset ranges. Explain that one KRaft broker is the permitted local single-node environment and does not provide replicated availability.
 
-## Minute 4 to 6
+## Minute 4-6: full downstream processing and PySpark logs
 
 ```powershell
-docker compose run --rm --no-deps producer python producer.py --csv data/events_sample.csv --limit 100 --interval 0.1 --replay-clock
+Get-Content runtime/full_replay_verified.json
 docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 --topic retail-rocket-events --from-beginning --max-messages 3
+docker compose run --rm --no-deps spark python scripts/inspect_output.py --parquet
 ```
 
-Show real CSV records converted to JSON and the logged partition and offset. Point out numeric identifiers and JSON null. In the Spark logs, show `live_events_console`, `stream_progress` and `batch_committed`. Explain record count versus aggregate-row count.
+The full verifier checked all source rows in the audit, matching event counts, source-coordinate uniqueness, both partitions and intent-query catch-up. Show `stream_progress` with batch ID, raw record count and execution duration. Explain why input rows differ from window aggregate rows. Open `streaming_etl.py` or `retail/transforms.py` to show the PySpark APIs; the connector JAR suffix is not Scala application code.
 
-## Minute 6 to 9
+## Minute 6-9: genuine cart and purchase transition
 
 ```powershell
 docker compose --profile tools run --rm demo
 ```
 
-Show clearly labeled mock telemetry. Explain that score 6 follows one view and one cart. The output recommends other unseen items based on live window popularity. Wait for the purchase stage. Explain that score 16 contains stronger engagement but the transaction removes cart eligibility. The current replacement snapshot retracts the user's recommendations.
+This command requires full replay verification. It selects actual records from the full CSV: candidate views and a visitor's view/cart/purchase sequence. It prints `REAL DATASET TRACE`, original timestamps and newly assigned Kafka coordinates. The constant timestamp shift preserves the original intervals. The trace starts beyond earlier active state so its output is clear. Explain that this is a disclosed second replay of selected genuine rows after complete-source ingestion.
 
-## Minute 9 to 11
+Show score 6 after view plus cart and the unseen recommended item IDs. Wait for the actual transaction. Show score 16 in state and recommendation retraction. Do not describe these records as mock or invent product names.
+
+## Minute 9-11: storage, watermark and checkpoint
 
 ```powershell
-docker compose --profile tools run --rm acceptance
 docker compose run --rm --no-deps spark python scripts/inspect_output.py --parquet
+Get-ChildItem runtime/checkpoints/intent/commits
+Get-Content runtime/metrics/progress.jsonl -Tail 3
 ```
 
-Show acceptance checks for the watermark, malformed audit and both partitions. Explain that the very late event lies behind all affected windows, so it cannot change retained intent state. The audit still stores its Kafka record. Show date partitions and active checkpoint commit files.
+Show partitioned Parquet, checkpoint commit files, source progress and state metrics. Explain how the five-minute watermark applies in event time and why the audit retains records even if they are too late for intent. Controlled malformed/late test injections are separate acceptance checks, already executed before class.
 
-## Minute 11 to 13
+## Minute 11-13: restart and continued genuine processing
 
 ```powershell
 docker compose restart spark
@@ -59,16 +63,16 @@ docker compose --profile tools run --rm demo
 docker compose run --rm --no-deps spark python scripts/check_recovery.py
 ```
 
-Show that the application processes new records after restart using saved offsets and state. Explain why an atomic published epoch is skipped on retry and why multiple outputs are not a single global transaction. Close with the measured batch duration visible in logs and the limitations of popularity-based recommendations. Do not substitute an invented latency number.
+Show new genuine source messages processed after the restart, a retained query ID and changed run ID. Explain source replay, checkpointed state and retry-safe epoch publication. If startup takes too long, show saved evidence from the actual pre-class restart and clearly label it as saved evidence.
 
-If restart takes too long, use saved evidence from the pre-class run and clearly label it as that run. The remainder of the demonstration still runs live.
+## Likely oral questions
 
-## Expected oral questions
+- Why PySpark rather than Scala? The assignment specifies PySpark; all producer and transformation code is Python. Spark's JVM connector binary is a dependency.
+- Why full data before the timed demo? Full-source processing time varies by hardware. Its verified result proves complete ingestion; a paced real trace makes the immediate business transition observable in the 10-15-minute presentation.
+- Why update mode? Final append-only windows would delay in-session recommendation changes.
+- Why does score 16 not qualify? Purchase absence is a separate eligibility condition from engagement weight.
+- Why one-minute slide? The brief supplies window length and watermark but leaves the slide unspecified. This explicit choice creates ten overlapping windows per event.
+- Why retain raw Kafka coordinates? They support audit and recovery checks without wrongly deduplicating identical business clicks.
+- What is exactly once here? A replayable source, checkpoint state and retry-safe sink produce one logical effect within their stated contract. Console text and independent queries are not one global transaction.
 
-- Why update mode? Append mode would wait for final windows, delaying in-session recommendations.
-- Why does purchase score 10 not trigger? Cart presence and zero transactions are independent eligibility conditions.
-- Why a one-minute slide? The brief specifies a 10-minute sliding window but leaves the slide unspecified. It creates ten overlapping windows per event and a practical aligned serving window.
-- Does five-minute watermark mean sleep five minutes? No. It advances with observed event time.
-- Is the algorithm trained ML? No. It is an explicit streaming intent and popularity baseline. ALS can provide an offline candidate model later.
-- Is the system exactly once everywhere? Replay-safe sinks and checkpoints protect processing retries under their filesystem contract. Console logs and independent queries have separate guarantees.
-- Why no ZooKeeper? The selected Kafka deployment uses KRaft controllers.
+On Bash replace `Get-Content` with `cat`/`tail` and `Get-ChildItem` with `ls`. Follow README for full reset rather than deleting a checkpoint in isolation.

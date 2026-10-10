@@ -3,12 +3,14 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   end-to-end:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build spark
-      - run: docker compose run --rm --no-deps spark python -m unittest tests.test_domain tests.test_spark tests.test_sink_integration.SinkTests.test_atomic_publish_then_retry -v
-      - run: docker compose up -d --wait spark
+      - run: docker compose run --rm --no-deps spark python -m unittest tests.test_domain tests.test_spark tests.test_verifier tests.test_sink_integration.SinkTests.test_atomic_publish_then_retry -v
+      - run: docker compose up -d
+      - name: Verify all 2756101 real events reached Kafka, Spark and Parquet
+        run: docker compose --profile tools run --rm verify-full
       - run: docker compose --profile tools run --rm acceptance
       - name: Restart and verify progress continues
         run: |
@@ -25,6 +27,8 @@ jobs:
           path: |
             compose.log
             runtime/metrics
+            runtime/producer_complete.json
+            runtime/full_replay_verified.json
             runtime/intent/epochs/*/manifest.json
       - if: always()
         run: docker compose down -v

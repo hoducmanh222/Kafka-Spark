@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from producer import make_producer, send_event
 from retail.files import latest_epoch, read_recommendations
 from scripts.live_demo import wait_for
+from retail.audit import committed_audit
 
 
 def main():
@@ -74,12 +75,12 @@ def main():
         producer.send('retail-rocket-events', key=user, value={'event': 'invalid'}).get(timeout=30)
         producer.flush()
         def audit_ready():
-            if not list((root / 'curated').rglob('*.parquet')): return False
-            audit = ds.dataset(str(root / 'curated'), format='parquet', partitioning='hive')
+            audit = committed_audit(root)
+            if audit is None: return False
             return any('invalid' in (r['raw_json'] or '') and r['is_valid'] in (False, 'false')
                        for r in audit.to_table(columns=['raw_json', 'is_valid']).to_pylist())
         wait_for(audit_ready)
-        audit = ds.dataset(str(root / 'curated'), format='parquet', partitioning='hive')
+        audit = committed_audit(root)
         assert 'event_time' in audit.schema.names and 'offset' in audit.schema.names
         assert any((root / 'checkpoints' / 'intent' / 'commits').iterdir())
         progress = [json.loads(s) for s in (root / 'metrics' / 'progress.jsonl').read_text().splitlines() if s]
