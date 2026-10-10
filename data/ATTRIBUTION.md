@@ -13,3 +13,5 @@ License text: https://creativecommons.org/licenses/by-nc-sa/4.0/
 `scripts/live_demo.py` and acceptance tests generate clearly labeled mock events. Those events are not presented as observations from Retail Rocket.
 
 The downloadable submission ZIP also includes the unchanged original `retailrocket_events.csv.zip` archive under this same dataset license. Git intentionally excludes that binary to avoid a large repository; Git users can obtain it using `scripts/download_data.py`. No Kaggle credentials are stored in the project.
+
+The bundle's full `events.csv` contains all 2,756,101 original events after validation and stable sorting by timestamp. Original order breaks timestamp ties. No event fields are changed. This sorted derivative retains the same Creative Commons Attribution NonCommercial ShareAlike 4.0 license and is also excluded from Git.

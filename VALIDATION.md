@@ -7,6 +7,7 @@ Prepared 10 October 2026.
 - `python -m unittest tests.test_domain tests.test_spark -v`: 13 tests passed, process exit code 0, total test duration 22.628 seconds.
 - Environment for those tests: Windows, bundled Python 3.12, PySpark 3.5.7 and portable Microsoft OpenJDK 17.0.20.1. The supported Docker image uses Python 3.11 and Java 17 instead.
 - Genuine Retail Rocket sample: 5,000 chronologically sorted records, 4,879 views, 98 carts and 23 transactions. Selected from the public events.csv archive.
+- Full dataset preparation: the delivered `scripts/prepare_data.py` successfully validated and stably sorted all 2,756,101 source events using SQLite. The resulting complete CSV is included in the downloadable submission bundle.
 - Spark checks used native SQL input DataFrames with the delivered JSON parser, window aggregation, snapshot merge and recommendation functions. They verified schema handling, scores, purchase suppression, exclusion of seen items, state expiry and no overlap-induced popularity multiplication.
 
 The Windows test run emitted Hadoop winutils and socket cleanup warnings. The test process returned 0 and all assertions passed. Those warnings do not validate native Windows file persistence, which is outside the supported execution route.
