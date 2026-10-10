@@ -1,0 +1,30 @@
+name: Kafka Spark acceptance
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build spark
+      - run: docker compose run --rm --no-deps spark python -m unittest tests.test_domain tests.test_spark tests.test_sink_integration.SinkTests.test_atomic_publish_then_retry -v
+      - run: docker compose up -d --wait spark
+      - run: docker compose --profile tools run --rm acceptance
+      - name: Restart and verify progress continues
+        run: |
+          docker compose restart spark
+          docker compose up -d --wait spark
+          docker compose --profile tools run --rm demo
+          docker compose run --rm --no-deps spark python scripts/check_recovery.py
+      - if: always()
+        run: docker compose logs --no-color > compose.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: streaming-evidence
+          path: |
+            compose.log
+            runtime/metrics
+            runtime/intent/epochs/*/manifest.json
+      - if: always()
+        run: docker compose down -v
