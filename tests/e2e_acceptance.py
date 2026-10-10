@@ -62,6 +62,7 @@ def main():
         # Advance watermark beyond old windows, then inject a definitely expired event.
         emit(user + 100, 'view', item + 100, 20 * 60000)
         wait_for(lambda: json.loads((latest_epoch(root) / 'manifest.json').read_text())['event_max_ms'] >= base + 20 * 60000)
+        assert not state_score(user, item, 16), 'old purchased visitor windows were not evicted'
         time.sleep(12)  # Allow Spark's following no-data trigger to apply the new watermark.
         old_epoch = latest_epoch(root)
         emit(user + 101, 'addtocart', item + 101, -60 * 60000)
@@ -75,7 +76,8 @@ def main():
         def audit_ready():
             if not list((root / 'curated').rglob('*.parquet')): return False
             audit = ds.dataset(str(root / 'curated'), format='parquet', partitioning='hive')
-            return any('invalid' in (r['raw_json'] or '') for r in audit.to_table(columns=['raw_json']).to_pylist())
+            return any('invalid' in (r['raw_json'] or '') and r['is_valid'] in (False, 'false')
+                       for r in audit.to_table(columns=['raw_json', 'is_valid']).to_pylist())
         wait_for(audit_ready)
         audit = ds.dataset(str(root / 'curated'), format='parquet', partitioning='hive')
         assert 'event_time' in audit.schema.names and 'offset' in audit.schema.names
