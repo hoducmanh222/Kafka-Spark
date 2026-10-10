@@ -59,6 +59,8 @@ The mock demo creates live candidate items, sends a view and a cart, waits until
 
 ## Full Retail Rocket dataset
 
+The downloadable submission ZIP includes the original `data/retailrocket_events.csv.zip` archive. If you extracted that bundle, skip the download command below and run the preparation command directly. Git excludes this large dataset binary; a Git clone uses the downloader instead.
+
 The archive download and disk-backed sort use only Python's standard library. Run inside the image to avoid installing host packages. Override the read-only data mount with the writable mount shown below:
 
 ```powershell

@@ -27,6 +27,6 @@
 | 10 to 15 minute live demonstration | DEMO.md and scripts/live_demo.py | 13-minute schedule and reproducible commands |
 | Presentation | Accompanying PowerPoint presentation | Theory, implementation and demo notes |
 | Modular code | retail modules, scripts and tests | Producer, transforms, sinks and serving readers separated |
-| Git repository link | README Git submission instructions | Requires the team's actual remote URL and push |
+| Git repository link | https://github.com/hoducmanh222/Kafka-Spark and README | Prepared for the supplied remote; publication requires GitHub authentication |
 
 The source document's high-intent inequality is incomplete. This solution explicitly sets `score >= 5`, requires a cart and excludes transactions for the same visitor and item within the serving window. The source does not specify a slide interval. This solution uses one minute. These choices appear consistently in code, tests, report and slides.

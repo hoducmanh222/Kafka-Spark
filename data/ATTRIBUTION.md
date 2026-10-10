@@ -12,4 +12,4 @@ License text: https://creativecommons.org/licenses/by-nc-sa/4.0/
 
 `scripts/live_demo.py` and acceptance tests generate clearly labeled mock events. Those events are not presented as observations from Retail Rocket.
 
-The complete source archive is downloadable using `scripts/download_data.py`; it is intentionally excluded from Git to avoid a large binary repository. No Kaggle credentials are stored in the project.
+The downloadable submission ZIP also includes the unchanged original `retailrocket_events.csv.zip` archive under this same dataset license. Git intentionally excludes that binary to avoid a large repository; Git users can obtain it using `scripts/download_data.py`. No Kaggle credentials are stored in the project.
